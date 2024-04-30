@@ -123,8 +123,6 @@ def scrape_jobs(
         description = job_data.get("description", "").lower()
         requirements = job_data.get("requirements", "").lower()
 
-        # entry_keywords = ["entry", "junior", "graduate", "grad"]
-        # entry_years = ["0-1", "0-2", "0-3", "1-2", "1-3", "1-4", "1+", "2+", "2-4", "2-3"]
         non_entry_years = ["four years", "five years", "six years", "3+", "4+", "5+", "6+", "3+ years", "4 years", "4+ years", "5 years", "5+ years", \
                            "6 years", "6+ years", "7 years", "7+ years", "8 years", "8+ years", "9 years", "9+ years",\
                             "10 years", "10+ years"]
@@ -138,13 +136,9 @@ def scrape_jobs(
 
         return not any(non_desired_year in description or non_desired_year in requirements for non_desired_year in non_entry_years) \
             and not any(non_desired_title in title for non_desired_title in non_desired_titles) 
-            # \
-            # and (any(keyword in title or keyword in description or keyword in requirements for keyword in entry_keywords) \
-            # or any(year in description or year in requirements for year in entry_years))
 
     jobs_dfs: list[pd.DataFrame] = []
 
-    # TODO - comment for debugging single-thread 
     with ThreadPoolExecutor() as executor:
         future_to_site = {
             executor.submit(worker, site): site for site in scraper_input.site_type
