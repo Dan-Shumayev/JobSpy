@@ -205,6 +205,9 @@ class LinkedInScraper(Scraper):
         if full_descr:
             description, job_type = self._get_job_description(job_url)
 
+        # Extract experience level from description
+        experience_level = self._extract_experience_level(description)
+
         return JobPost(
             title=title,
             company_name=company,
@@ -216,7 +219,24 @@ class LinkedInScraper(Scraper):
             job_type=job_type,
             description=description,
             emails=extract_emails_from_text(description) if description else None,
+            experience_level=experience_level,
         )
+
+    def _extract_experience_level(self, description: str) -> str | None:
+        """
+        Extracts the experience level from the job description.
+        :param description: The job description text.
+        :return: The extracted experience level.
+        """
+        if description is None:
+            return None
+
+        description_lower = description.lower()
+        if "entry" in description_lower or "junior" in description_lower or "graduate" in description_lower or any(keyword in description_lower for keyword in ["0-2", "0-3", "1-2", "1-3", "2-4", "2-3", "1+", "2+"]):
+            return "Entry"
+        else:
+            return "Non-entry"
+
 
     def _get_job_description(
         self, job_page_url: str

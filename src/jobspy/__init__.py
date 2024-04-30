@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 from typing import Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import Enum, auto
 
 from .jobs import JobType, Location
 from .scrapers.utils import logger, set_logger_level
@@ -18,6 +19,10 @@ from .scrapers.exceptions import (
     GlassdoorException,
 )
 
+class ExperienceLevel(Enum):
+    ENTRY = auto()
+    JUNIOR = auto()
+    GRADUATE = auto()
 
 def scrape_jobs(
     site_name: str | list[str] | Site | list[Site] | None = None,
@@ -36,6 +41,7 @@ def scrape_jobs(
     linkedin_company_ids: list[int] | None = None,
     offset: int | None = 0,
     hours_old: int = None,
+    junior_experience_level = False,
     verbose: int = 2,
     **kwargs,
 ) -> pd.DataFrame:
@@ -109,6 +115,36 @@ def scrape_jobs(
         site_val, scraped_info = scrape_site(site)
         return site_val, scraped_info
 
+    def filter_by_experience(job_data: dict) -> bool:
+        if not junior_experience_level:
+            return True  # No filtering needed if experience level is not provided
+
+        title = job_data.get("title", "").lower()
+        description = job_data.get("description", "").lower()
+        requirements = job_data.get("requirements", "").lower()
+
+        # entry_keywords = ["entry", "junior", "graduate", "grad"]
+        # entry_years = ["0-1", "0-2", "0-3", "1-2", "1-3", "1-4", "1+", "2+", "2-4", "2-3"]
+        non_entry_years = ["four years", "five years", "six years", "3+", "4+", "5+", "6+", "3+ years", "4 years", "4+ years", "5 years", "5+ years", \
+                           "6 years", "6+ years", "7 years", "7+ years", "8 years", "8+ years", "9 years", "9+ years",\
+                            "10 years", "10+ years"]
+        non_desired_titles = ["sr.", "senior", "principal", "lead", "manager", "experienced", "vp", \
+                              "vice president", "customer", "staff", "bi", "student", "devops", "sr", "qa", "technical", "quality", \
+                                "test", "automation", "front", "it", "global", "center", "associate", "noc", "soc", "validation", \
+                                    "verification", "process", "design", "analyst", "sales", "solution", "ate", "fpga", \
+                                        "robot", "plc", "business", "integrat", "application", "performance", "asic", "rfic", "mcu"\
+                                            "mechanic", "medic", "configur", "certificat", "secops", "simulat", "service", \
+                                                "operation", "finops", "information"]
+
+        return not any(non_desired_year in description or non_desired_year in requirements for non_desired_year in non_entry_years) \
+            and not any(non_desired_title in title for non_desired_title in non_desired_titles) 
+            # \
+            # and (any(keyword in title or keyword in description or keyword in requirements for keyword in entry_keywords) \
+            # or any(year in description or year in requirements for year in entry_years))
+
+    jobs_dfs: list[pd.DataFrame] = []
+
+    # TODO - comment for debugging single-thread 
     with ThreadPoolExecutor() as executor:
         future_to_site = {
             executor.submit(worker, site): site for site in scraper_input.site_type
@@ -118,7 +154,24 @@ def scrape_jobs(
             site_value, scraped_data = future.result()
             site_to_jobs_dict[site_value] = scraped_data
 
-    jobs_dfs: list[pd.DataFrame] = []
+    for site, job_response in site_to_jobs_dict.items():
+        # Create a new list to store filtered jobs
+        filtered_jobs = []
+
+        for job in job_response.jobs:
+            job_data = job.dict()
+
+            # Filter by experience level
+            if junior_experience_level and not filter_by_experience(job_data):
+                # Skip adding this job to the filtered list
+                continue
+
+            # Add the job to the filtered list
+            filtered_jobs.append(job)
+
+        # Replace the original list of jobs with the filtered list
+        job_response.jobs = filtered_jobs
+
 
     for site, job_response in site_to_jobs_dict.items():
         for job in job_response.jobs:
@@ -168,32 +221,32 @@ def scrape_jobs(
 
         # Desired column order
         desired_order = [
-            "site",
+            # "site",
             "job_url_hyper" if hyperlinks else "job_url",
-            "job_url_direct",
+            # "job_url_direct",
             "title",
             "company",
-            "location",
-            "job_type",
-            "date_posted",
-            "interval",
-            "min_amount",
-            "max_amount",
-            "currency",
-            "is_remote",
-            "emails",
-            "description",
-            "company_url",
-            "company_url_direct",
-            "company_addresses",
-            "company_industry",
-            "company_num_employees",
+            # "location",
+            # "job_type",
+            # "date_posted",
+            # "interval",
+            # "min_amount",
+            # "max_amount",
+            # "currency",
+            # "is_remote",
+            # "emails",
+            # "description",
+            # "company_url",
+            # "company_url_direct",
+            # "company_addresses",
+            # "company_industry",
+            # "company_num_employees",
             "company_revenue",
-            "company_description",
-            "logo_photo_url",
-            "banner_photo_url",
-            "ceo_name",
-            "ceo_photo_url",
+            # "company_description",
+            # "logo_photo_url",
+            # "banner_photo_url",
+            # "ceo_name",
+            # "ceo_photo_url",
         ]
 
         # Step 3: Ensure all desired columns are present, adding missing ones as empty
@@ -205,6 +258,6 @@ def scrape_jobs(
         jobs_df = jobs_df[desired_order]
 
         # Step 4: Sort the DataFrame as required
-        return jobs_df.sort_values(by=["site", "date_posted"], ascending=[True, False])
+        return jobs_df.sort_values(by=["company_revenue"], ascending=[False])
     else:
         return pd.DataFrame()
