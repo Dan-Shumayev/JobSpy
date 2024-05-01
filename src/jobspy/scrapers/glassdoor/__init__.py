@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import json
 import requests
+from bs4 import BeautifulSoup
 from typing import Optional, Tuple
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -114,7 +115,7 @@ class GlassdoorScraper(Scraper):
             if response.status_code != 200:
                 exc_msg = f"bad response status code: {response.status_code}"
                 raise GlassdoorException(exc_msg)
-            res_json = response.json()[0]
+            res_json = json.loads(BeautifulSoup(response.content, 'html.parser').find('script', id='__NEXT_DATA__').string)
             if "errors" in res_json:
                 raise ValueError("Error encountered in API response")
         except (
@@ -126,7 +127,7 @@ class GlassdoorScraper(Scraper):
             logger.error(f"Glassdoor: {str(e)}")
             return jobs, None
 
-        jobs_data = res_json["data"]["jobListings"]["jobListings"]
+        jobs_data = res_json['props']['pageProps']['jobSearchPage']['searchResultsData']['jobListings']['jobListings']
 
         with ThreadPoolExecutor(max_workers=self.jobs_per_page) as executor:
             future_to_job_data = {
@@ -141,7 +142,7 @@ class GlassdoorScraper(Scraper):
                     raise GlassdoorException(f"Glassdoor generated an exception: {exc}")
 
         return jobs, self.get_cursor_for_page(
-            res_json["data"]["jobListings"]["paginationCursors"], page_num + 1
+            res_json['props']['pageProps']['jobSearchPage']['searchResultsData']['jobListings']['paginationCursors'], page_num + 1
         )
 
     def _get_csrf_token(self):
@@ -241,12 +242,45 @@ class GlassdoorScraper(Scraper):
             desc = markdown_converter(desc)
         return desc
 
+    # def _get_location(self, location: str, is_remote: bool) -> (int, str):
+    #     if not location or is_remote:
+    #         return "11047", "STATE"  # remote options
+    #     url = f"{self.base_url}/findPopularLocationAjax.htm?maxLocationsToReturn=10&term={location}"
+    #     session = create_session(self.proxy, has_retry=True)
+    #     res = self.session.get(url, headers=self.headers)
+    #     if res.status_code != 200:
+    #         if res.status_code == 429:
+    #             err = f"429 Response - Blocked by Glassdoor for too many requests"
+    #             logger.error(err)
+    #             return None, None
+    #         else:
+    #             err = f"Glassdoor response status code {res.status_code}"
+    #             err += f" - {res.text}"
+    #             logger.error(f"Glassdoor response status code {res.status_code}")
+    #             return None, None
+    #     items = res.json()
+
+    #     if not items:
+    #         raise ValueError(f"Location '{location}' not found on Glassdoor")
+    #     location_type = items[0]["locationType"]
+    #     if location_type == "C":
+    #         location_type = "CITY"
+    #     elif location_type == "S":
+    #         location_type = "STATE"
+    #     elif location_type == "N":
+    #         location_type = "COUNTRY"
+    #     return int(items[0]["locationId"]), location_type
+
+    from bs4 import BeautifulSoup
+
     def _get_location(self, location: str, is_remote: bool) -> (int, str):
         if not location or is_remote:
             return "11047", "STATE"  # remote options
-        url = f"{self.base_url}/findPopularLocationAjax.htm?maxLocationsToReturn=10&term={location}"
+
+        url = f"{self.base_url}/Jobs/{location}-jobs-SRCH_IL.0,12_IC{location}.htm"
         session = create_session(self.proxy, has_retry=True)
         res = self.session.get(url, headers=self.headers)
+        
         if res.status_code != 200:
             if res.status_code == 429:
                 err = f"429 Response - Blocked by Glassdoor for too many requests"
@@ -257,18 +291,54 @@ class GlassdoorScraper(Scraper):
                 err += f" - {res.text}"
                 logger.error(f"Glassdoor response status code {res.status_code}")
                 return None, None
-        items = res.json()
 
-        if not items:
-            raise ValueError(f"Location '{location}' not found on Glassdoor")
-        location_type = items[0]["locationType"]
-        if location_type == "C":
-            location_type = "CITY"
-        elif location_type == "S":
-            location_type = "STATE"
-        elif location_type == "N":
-            location_type = "COUNTRY"
-        return int(items[0]["locationId"]), location_type
+        # Parse HTML response to extract location data
+        soup = BeautifulSoup(res.content, 'html.parser')
+        # Extract location information from the HTML, you may need to inspect the HTML structure of Glassdoor's page to find the relevant elements.
+        location_id = int(json.loads(soup.find('script', id='__NEXT_DATA__').string)['props']['pageProps']['searchLocation']['id'])
+        location_type = json.loads(soup.find('script', id='__NEXT_DATA__').string)['props']['pageProps']['searchLocation']['type']
+        
+        # Return the extracted location data
+        return location_id, location_type
+
+
+    # def _add_payload(
+    #     self,
+    #     location_id: int,
+    #     location_type: str,
+    #     page_num: int,
+    #     cursor: str | None = None,
+    # ) -> str:
+    #     fromage = None
+    #     if self.scraper_input.hours_old:
+    #         fromage = max(self.scraper_input.hours_old // 24, 1)
+    #     filter_params = []
+    #     if self.scraper_input.easy_apply:
+    #         filter_params.append({"filterKey": "applicationType", "values": "1"})
+    #     if fromage:
+    #         filter_params.append({"filterKey": "fromAge", "values": str(fromage)})
+    #     payload = {
+    #         "operationName": "JobSearchResultsQuery",
+    #         "variables": {
+    #             "excludeJobListingIds": [],
+    #             "filterParams": filter_params,
+    #             "keyword": self.scraper_input.search_term,
+    #             "numJobsToShow": 30,
+    #             "locationType": location_type,
+    #             "locationId": int(location_id),
+    #             "parameterUrlInput": f"IL.0,12_I{location_type}{location_id}",
+    #             "pageNumber": page_num,
+    #             "pageCursor": cursor,
+    #             "fromage": fromage,
+    #             "sort": "date",
+    #         },
+    #         "query": self.query_template,
+    #     }
+    #     if self.scraper_input.job_type:
+    #         payload["variables"]["filterParams"].append(
+    #             {"filterKey": "jobType", "values": self.scraper_input.job_type.value[0]}
+    #         )
+    #     return json.dumps([payload])
 
     def _add_payload(
         self,
@@ -285,6 +355,23 @@ class GlassdoorScraper(Scraper):
             filter_params.append({"filterKey": "applicationType", "values": "1"})
         if fromage:
             filter_params.append({"filterKey": "fromAge", "values": str(fromage)})
+        
+        # Define dynamic loading parameters
+        scroll_request = {
+            "scrollRequest": {
+                "scrollPositions": [
+                    {"pageStart": 1, "pageEnd": page_num}
+                ]
+            }
+        }
+        ajax_request = {
+            "ajaxRequest": {
+                "pageRequest": {
+                    "nextPageNumber": page_num
+                }
+            }
+        }
+
         payload = {
             "operationName": "JobSearchResultsQuery",
             "variables": {
@@ -301,7 +388,10 @@ class GlassdoorScraper(Scraper):
                 "sort": "date",
             },
             "query": self.query_template,
+            **scroll_request,  # Include scroll request
+            **ajax_request  # Include ajax request
         }
+
         if self.scraper_input.job_type:
             payload["variables"]["filterParams"].append(
                 {"filterKey": "jobType", "values": self.scraper_input.job_type.value[0]}

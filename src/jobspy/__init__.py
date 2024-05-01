@@ -119,9 +119,9 @@ def scrape_jobs(
         if not junior_experience_level:
             return True  # No filtering needed if experience level is not provided
 
-        title = job_data.get("title", "").lower()
-        description = job_data.get("description", "").lower()
-        requirements = job_data.get("requirements", "").lower()
+        title = job_data.get("title", "").lower() if job_data.get("title", "") else ""
+        description = job_data.get("description", "").lower() if job_data.get("description", "") else ""
+        requirements = job_data.get("requirements", "").lower() if job_data.get("requirements", "") else ""
 
         non_entry_years = ["four years", "five years", "six years", "3+", "4+", "5+", "6+", "3+ years", "4 years", "4+ years", "5 years", "5+ years", \
                            "6 years", "6+ years", "7 years", "7+ years", "8 years", "8+ years", "9 years", "9+ years",\
@@ -132,7 +132,7 @@ def scrape_jobs(
                                     "verification", "process", "design", "analyst", "sales", "solution", "ate", "fpga", \
                                         "robot", "plc", "business", "integrat", "application", "performance", "asic", "rfic", "mcu"\
                                             "mechanic", "medic", "configur", "certificat", "secops", "simulat", "service", \
-                                                "operation", "finops", "information"]
+                                                "operation", "finops", "information", "maintenance"]
 
         return not any(non_desired_year in description or non_desired_year in requirements for non_desired_year in non_entry_years) \
             and not any(non_desired_title in title for non_desired_title in non_desired_titles) 
@@ -252,6 +252,6 @@ def scrape_jobs(
         jobs_df = jobs_df[desired_order]
 
         # Step 4: Sort the DataFrame as required
-        return jobs_df.sort_values(by=["company_revenue"], ascending=[False])
+        return jobs_df.sort_values(by=["company_revenue"], ascending=[False], na_position='first')
     else:
         return pd.DataFrame()
