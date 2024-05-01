@@ -87,7 +87,7 @@ class Country(Enum):
     INDIA = ("india", "in", "co.in")
     INDONESIA = ("indonesia", "id")
     IRELAND = ("ireland", "ie", "ie")
-    ISRAEL = ("israel", "il")
+    ISRAEL = ("israel", "il", "www.glassdoor.com/Job/israel-computer-science-jobs-jobs-SRCH_IL.0,6_IN119_KO7,28.htm")
     ITALY = ("italy", "it", "it")
     JAPAN = ("japan", "jp")
     KUWAIT = ("kuwait", "kw")
@@ -141,7 +141,11 @@ class Country(Enum):
 
     @property
     def glassdoor_domain_value(self):
-        if len(self.value) == 3:
+        if self.value[0] == 'israel':
+            url = self.value[2]
+            if url:
+                return f"{url}"
+        elif len(self.value) == 3:
             subdomain, _, domain = self.value[2].partition(":")
             if subdomain and domain:
                 return f"{subdomain}.glassdoor.{domain}"

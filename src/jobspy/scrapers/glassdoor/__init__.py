@@ -149,7 +149,8 @@ class GlassdoorScraper(Scraper):
         Fetches csrf token needed for API by visiting a generic page
         """
         res = self.session.get(
-            f"{self.base_url}/Job/computer-science-jobs.htm", headers=self.headers
+            f"{self.base_url}/Job/computer-science-jobs.htm" \
+                if self.scraper_input.country.value[0] != 'israel' else f"{self.base_url}", headers=self.headers
         )
         pattern = r'"token":\s*"([^"]+)"'
         matches = re.findall(pattern, res.text)
