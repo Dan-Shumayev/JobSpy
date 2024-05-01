@@ -273,7 +273,7 @@ class GlassdoorScraper(Scraper):
 
     from bs4 import BeautifulSoup
 
-    def _get_location(self, location: str, is_remote: bool) -> (int, str):
+    def _get_location(self, location: str, is_remote: bool) -> tuple[int, str]:
         if not location or is_remote:
             return "11047", "STATE"  # remote options
 
