@@ -242,37 +242,6 @@ class GlassdoorScraper(Scraper):
             desc = markdown_converter(desc)
         return desc
 
-    # def _get_location(self, location: str, is_remote: bool) -> (int, str):
-    #     if not location or is_remote:
-    #         return "11047", "STATE"  # remote options
-    #     url = f"{self.base_url}/findPopularLocationAjax.htm?maxLocationsToReturn=10&term={location}"
-    #     session = create_session(self.proxy, has_retry=True)
-    #     res = self.session.get(url, headers=self.headers)
-    #     if res.status_code != 200:
-    #         if res.status_code == 429:
-    #             err = f"429 Response - Blocked by Glassdoor for too many requests"
-    #             logger.error(err)
-    #             return None, None
-    #         else:
-    #             err = f"Glassdoor response status code {res.status_code}"
-    #             err += f" - {res.text}"
-    #             logger.error(f"Glassdoor response status code {res.status_code}")
-    #             return None, None
-    #     items = res.json()
-
-    #     if not items:
-    #         raise ValueError(f"Location '{location}' not found on Glassdoor")
-    #     location_type = items[0]["locationType"]
-    #     if location_type == "C":
-    #         location_type = "CITY"
-    #     elif location_type == "S":
-    #         location_type = "STATE"
-    #     elif location_type == "N":
-    #         location_type = "COUNTRY"
-    #     return int(items[0]["locationId"]), location_type
-
-    from bs4 import BeautifulSoup
-
     def _get_location(self, location: str, is_remote: bool) -> tuple[int, str]:
         if not location or is_remote:
             return "11047", "STATE"  # remote options
@@ -300,45 +269,6 @@ class GlassdoorScraper(Scraper):
         
         # Return the extracted location data
         return location_id, location_type
-
-
-    # def _add_payload(
-    #     self,
-    #     location_id: int,
-    #     location_type: str,
-    #     page_num: int,
-    #     cursor: str | None = None,
-    # ) -> str:
-    #     fromage = None
-    #     if self.scraper_input.hours_old:
-    #         fromage = max(self.scraper_input.hours_old // 24, 1)
-    #     filter_params = []
-    #     if self.scraper_input.easy_apply:
-    #         filter_params.append({"filterKey": "applicationType", "values": "1"})
-    #     if fromage:
-    #         filter_params.append({"filterKey": "fromAge", "values": str(fromage)})
-    #     payload = {
-    #         "operationName": "JobSearchResultsQuery",
-    #         "variables": {
-    #             "excludeJobListingIds": [],
-    #             "filterParams": filter_params,
-    #             "keyword": self.scraper_input.search_term,
-    #             "numJobsToShow": 30,
-    #             "locationType": location_type,
-    #             "locationId": int(location_id),
-    #             "parameterUrlInput": f"IL.0,12_I{location_type}{location_id}",
-    #             "pageNumber": page_num,
-    #             "pageCursor": cursor,
-    #             "fromage": fromage,
-    #             "sort": "date",
-    #         },
-    #         "query": self.query_template,
-    #     }
-    #     if self.scraper_input.job_type:
-    #         payload["variables"]["filterParams"].append(
-    #             {"filterKey": "jobType", "values": self.scraper_input.job_type.value[0]}
-    #         )
-    #     return json.dumps([payload])
 
     def _add_payload(
         self,
